@@ -1,0 +1,8 @@
+kafka-python==2.3.0
+pandas
+numpy
+joblib
+scikit-learn
+pyarrow
+streamlit
+streamlit_autorefresh
