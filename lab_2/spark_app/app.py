@@ -1,4 +1,5 @@
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import avg
 from utils import MetricsLogger
 
 logger = MetricsLogger()
@@ -24,6 +25,13 @@ df = spark.read.csv(
 print("Schema:")
 df.printSchema()
 
+# # === OPTIMIZATION ===
+# df = df.repartition(6)
+# df.cache()
+
+# # прогрев кеша
+# df.count()
+
 # === 2. Базовые метрики ===
 count = df.count()
 partitions = df.rdd.getNumPartitions()
@@ -31,17 +39,35 @@ partitions = df.rdd.getNumPartitions()
 print("Rows:", count)
 print("Partitions:", partitions)
 
-# === 3. Обработка (сделай НЕ тривиально) ===
+# === 3. Обработка ===
 
-# пример: фильтрация + агрегация
+# Фильтрация
 df_filtered = df.filter(df["Country"].isNotNull())
 
-result = df_filtered.groupBy("Country").count()
+# --- 1. Количество разработчиков по странам ---
+country_counts = df_filtered.groupBy("Country").count()
+country_counts.show(10)
 
-result.show(10)
+# --- 2. Средняя зарплата по странам ---
+salary_stats = df_filtered.groupBy("Country") \
+    .agg(avg("ConvertedCompYearly").alias("avg_salary"))
 
-# === 4. Запись результата ===
-result.write.mode("overwrite").csv("hdfs://namenode:9000/results/basic")
+salary_stats.orderBy("avg_salary", ascending=False).show(10)
+
+# --- 3. Распределение удалённой работы ---
+remote_stats = df.groupBy("RemoteWork").count()
+remote_stats.show()
+
+# === 4. Сохранение результатов ===
+
+country_counts.write.mode("overwrite") \
+    .csv("hdfs://namenode:9000/results/country_counts")
+
+salary_stats.write.mode("overwrite") \
+    .csv("hdfs://namenode:9000/results/salary_stats")
+
+remote_stats.write.mode("overwrite") \
+    .csv("hdfs://namenode:9000/results/remote_stats")
 
 # === 5. Логирование ===
 logger.log({
