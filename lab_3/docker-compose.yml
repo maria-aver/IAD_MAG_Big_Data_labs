@@ -1,0 +1,31 @@
+services:
+  mlflow:
+    image: python:3.12-slim
+    working_dir: /mlflow
+    command: sh -c "pip install mlflow && mlflow server --backend-store-uri sqlite:////mlflow/mlflow.db --default-artifact-root /mlflow/mlruns --host 0.0.0.0 --port 5000 --allowed-hosts '*' --cors-allowed-origins '*'"
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlflow_data:/mlflow
+
+  app:
+    build: .
+    container_name: lakehouse_app
+    depends_on:
+      - mlflow
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - ./lakehouse:/app/lakehouse
+      - ./data:/app/data
+      - ./src:/app/src
+    command: >
+      sh -c "
+      apt-get update && apt-get install -y curl &&
+      until curl -sf http://mlflow:5000 > /dev/null; do
+        echo 'Waiting for MLflow...';
+        sleep 2;
+      done;
+      echo 'MLflow is ready';
+      python src/05_train_ml.py
+      "

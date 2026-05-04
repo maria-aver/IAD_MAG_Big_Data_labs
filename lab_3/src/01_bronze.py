@@ -4,20 +4,18 @@ from deltalake import write_deltalake
 from config import RAW_DATA_DIR, BRONZE_PATH
 
 
-def extract_year_from_filename(file_path):
+def extract_batch_date_from_filename(file_path):
     """
-    Expected filename examples:
-    flights_2018.csv
-    2018.csv
-    US_flights_2020.csv
+    Expected filename:
+    flights_2024_01_01.csv
     """
-    name = file_path.stem
+    parts = file_path.stem.split("_")
 
-    for part in name.split("_"):
-        if part.isdigit() and len(part) == 4:
-            return int(part)
+    year = int(parts[-3])
+    month = int(parts[-2])
+    day = int(parts[-1])
 
-    raise ValueError(f"Cannot extract year from filename: {file_path.name}")
+    return year, month, day
 
 
 def load_csv_to_bronze():
@@ -29,7 +27,7 @@ def load_csv_to_bronze():
     BRONZE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     for file_path in csv_files:
-        year = extract_year_from_filename(file_path)
+        year, month, day = extract_batch_date_from_filename(file_path)
 
         print(f"Loading {file_path.name} to bronze Delta table...")
 
@@ -40,7 +38,9 @@ def load_csv_to_bronze():
         )
 
         df = df.with_columns(
-            pl.lit(year).alias("source_year")
+            pl.lit(year).alias("source_year"),
+            pl.lit(month).alias("source_month"),
+            pl.lit(day).alias("source_day"),
         )
 
         write_deltalake(
@@ -49,7 +49,7 @@ def load_csv_to_bronze():
             mode="append",
         )
 
-        print(f"Loaded year {year}: {df.shape[0]} rows")
+        print(f"Loaded batch {year}-{month:02d}-{day:02d}: {df.shape[0]} rows")
 
     print(f"Bronze table saved to: {BRONZE_PATH}")
 
